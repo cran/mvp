@@ -1,5 +1,4 @@
-# following check uses Euler's four-square identity, although the
-# identity is more thoroughly checked in aaa.R
+# following check uses Euler's four-square identity:
 
 library("mvp")
 
