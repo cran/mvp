@@ -25,10 +25,6 @@ typedef map <term, double> mvp;  // ... An 'mvp' object (MultiVariatePolynomial)
 
 typedef map <string, double> subs; // A 'subs' object is a map from a string object to a real value, used in variable substitutions; thus a=1.1, b=1.2 is the map {'a' -> 1.1, 'b' -> 2.2}
 
-typedef map <string, mvp> subs_mvp; // A 'subs_mvp' object is a map from a string object to a mvp  object, used in variable  substitutions; thus a=1+3xy^2,
-                                    // b=7tt^3 is the map {'a' ->  {emptymap -> 1, {x -> 1, y -> 2} -> 3}, 'b' -> {{tt -> 3} ->  7}}
-                                    // (not currently used but might be useful for things like xy^2 /. {x -> 1+a, y -> 1+b}
-
 mvp zero_coefficient_remover(const mvp &X){
     mvp out;
     for(mvp::const_iterator it=X.begin() ; it != X.end() ; ++it){
@@ -182,6 +178,94 @@ mvp deriv(const mvp X, const string v){// differentiation: dX/dv, 'v' a single v
     return zero_coefficient_remover(out); // eliminates terms with no v
 }
 
+mvp taylor_onevar(const mvp X, const unsigned int n, const string v){
+    if(n < 0){throw std::range_error("power cannot be <0");} 
+    mvp out=X;
+    mvp::const_iterator it;  // sit == symbol iterator
+    for(it=X.begin() ; it != X.end() ; ++it){      // iterate through X, remove terms if needed.
+        term xt=it->first;                         // coefficient, "it->second", is ignored
+        if(xt.find(v) != xt.end()){ 
+            if(xt[v]>n){
+                out.erase(xt) ;
+            }
+        }
+    }
+    return out;
+}
+
+mvp taylor_onepower_onevar(const mvp X, const unsigned int n, const string v){
+    mvp jj,out;
+    term xn;
+    mvp::const_iterator it;  // sit == symbol iterator
+    if(n==0){  // n=0 means we seek terms with no symbol v in them
+        for(it=X.begin() ; it != X.end() ; ++it){      // iterate through X
+            term xt=it->first;                         // it->second is the coefficient
+            jj.clear();
+            if(xt.find(v) == xt.end()){ // if symbol v *not* present in xt, then:
+                jj[xt] = it->second;    // (1) populate mvp jj with a single pair
+                out = sum(out, jj);     // (2) add this to out
+            } // else do nothing
+        } // X iteration closes
+    } else { //  now n != 0, we seek terms with v^n
+        for(it=X.begin() ; it != X.end() ; ++it){ // iterate through X, 
+            term xt=it->first;
+            jj.clear();
+            if(xt.find(v) != xt.end()){  // if there *is* symbol v in term...
+                if(xt[v]==n){            // ...and if its power equals n, then:
+                    xn=xt;               // (1) create a new term,
+                    xn.erase(v);         // (2) remove v from the new term, 
+                    jj[xn] = it->second; // (3) populate jj with a single key-value pair
+                    out = sum(out, jj);  // (4) add jj to out.
+                } // else do nothing
+            } // else do nothing
+        }
+    } //if(n==0) closes
+    return out;
+}
+
+mvp taylor_allvars(const mvp X, const unsigned int n){  // truncated Taylor series
+    if(n < 0){throw std::range_error("power cannot be <0");} 
+    term::const_iterator sit;  // sit == symbol iterator
+    mvp::const_iterator it;  
+    mvp out=X;
+
+    for(it=X.begin() ; it != X.end() ; ++it){      // iterate through X, remove terms if needed.
+      const term xt=it->first;                         // coefficient, "it->second", is ignored
+      signed int totalpower = 0;
+      for(sit = xt.begin() ; sit != xt.end() ; ++sit){ // iterate through one term of X
+          totalpower += sit->second;
+      }      
+      if(totalpower > n){ out.erase(xt); }
+    }
+    return out;
+}
+    
+// [[Rcpp::export]]
+List mvp_taylor_onevar(
+              const List &allnames, const List &allpowers, const NumericVector &coefficients,
+              const NumericVector   &n,
+              const CharacterVector &v
+              ){
+    return retval(taylor_onevar(prepare(allnames,allpowers,coefficients), n[0], (string) v[0]));
+}
+
+// [[Rcpp::export]]
+List mvp_taylor_onepower_onevar(
+              const List &allnames, const List &allpowers, const NumericVector &coefficients,
+              const NumericVector   &n,
+              const CharacterVector &v
+              ){
+    return retval(taylor_onepower_onevar(prepare(allnames,allpowers,coefficients), n[0], (string) v[0]));
+}
+
+// [[Rcpp::export]]
+List mvp_taylor_allvars(
+              const List &allnames, const List &allpowers, const NumericVector &coefficients,
+              const NumericVector &n
+              ){
+    return retval(taylor_allvars(prepare(allnames,allpowers,coefficients), n[0]));
+}
+
 // [[Rcpp::export]]
 List simplify(const List &allnames, const List &allpowers, const NumericVector &coefficients){
     return retval(prepare(allnames,allpowers,coefficients));
@@ -311,4 +395,9 @@ List mvp_substitute_mvp(
     }                                        // i loop closes: go on to consider the next element of X
     return(retval(Xnew));                    // return a pre-prepared list to R
 }                                            // function mvp_substitute() closes
+
+
+
+
+                
 

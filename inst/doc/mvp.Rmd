@@ -1,7 +1,11 @@
 ---
-title: "The ```mvp``` package: fast multivariate polynomials R"
+title: 'The ```mvp``` package: fast multivariate polynomials R'
 author: "Robin K. S. Hankin"
 date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
 bibliography: poly.bib
 vignette: >
   %\VignetteIndexEntry{mvp}
@@ -36,15 +40,15 @@ polynomials are considered to be the sum of a finite number of
 $x^2y^3z$.  We may consider this term to be the map
 
 ```
-{"x" -> 2, "y" -> 3, "z" -> 7}
+{"x" -> 2, "y" -> 3, "z" -> 1}
 ```
 
-the map takes symbols to their (integer) power, and it is understood
+where the map takes symbols to their (integer) power; it is understood
 that powers are nonzero.  A ```mvp``` object is a map from terms to
-their coeffients; thus $7xy^2 -3x^2z^5$ would be
+their coeffients; thus $7xy^2 -3x^2yz^5$ would be
 
 ```
-{{"x" -> 2, "y" -> 3, "z" -> 1} -> 7, {"x" -> 2, "z" ->5} -> -7}
+{{"x" -> 1, "y" -> 2} -> 7, {"x" -> 2, 'y" -> 1, "z" ->5} -> -3}
 ```  
 
 and we understand that coefficients are nonzero.  In ```C++``` the
@@ -59,13 +63,11 @@ typedef map <term, double> mvp;
 ```
 
 Thus a ```term``` maps a string to a (signed) integer, and a ```mvp```
-maps terms to doubles. 
-
-One reason why the ```map``` class is fast is that the order in which
-the keys are stored is undefined: the compiler may store them in the
-order which it regards as most propitious.  This is not an issue for
-the maps considered here as addition and multiplication are
-commutative and associative.
+maps terms to doubles.  One reason why the ```map``` class is fast is
+that the order in which the keys are stored is undefined: the compiler
+may store them in the order which it regards as most propitious.  This
+is not an issue for the maps considered here as addition and
+multiplication are commutative and associative.
 
 Note also that constant terms are handled with no difficulty
 (constants are simply maps from the empty map to its value), as is the
@@ -79,8 +81,7 @@ representation in the following R session:
 
 ```{r}
 library("mvp",quietly=TRUE)
-p <- as.mvp("3x y + z^3 + x y^6 z")
-p
+(p <- as.mvp("3 x y + z^3 + x y^6 z"))
 ```
 
 Coercion and printing are accomplished by the ```mpoly``` package
@@ -99,8 +100,7 @@ the symbols within a single term.  Although this might sound odd, if
 we consider a marginally more involved situation, such as
 
 ```{r}
-M <- as.mvp("3 stoat*goat^6 -4 + 7 stoatboat^3 * bloat -9 float*boat*goat*gloat^6")
-M
+(M <- as.mvp("3 stoat goat^6 -4 + 7 stoatboat^3 bloat -9 float boat goat gloat^6"))
 dput(M)
 ```
 
@@ -121,12 +121,10 @@ The arithmetic operations ```*```, ```+```, ```-``` and ```^``` work
 as expected:
 
 ```{r}
-S1 <- rmvp(5,2,2,4)
-S2 <- rmvp(5,2,2,4)
-S1
-S2
-S1+S2
-S1*S2
+(S1 <- rmvp(5,2,2,4))
+(S2 <- rmvp(5,2,2,4))
+S1 + S2
+S1 * S2
 S1^2
 ```
 
@@ -137,30 +135,45 @@ substitute one or more variables for a numeric value.  Define a mvp
 object:
 
 ```{r}
-S3 <- as.mvp("x + 5x^4*y + 8y^2*x*z^3")
-S3
+(S3 <- as.mvp("x + 5 x^4 y + 8 y^2 x z^3"))
 ```
 
 And then we may substitute $x=1$:
 
 ```{r}
-subs(S3,x=1)
+subs(S3, x = 1)
 ```
 
 Note the natural R idiom, and that the return value is another mvp
 object.  We may subsitute for the other variables:
 
 ```{r}
-subs(S3,x=1,y=2,z=3)
+subs(S3, x = 1, y = 2, z = 3)
 ```
 
 (in this case, the default behaviour is to return a "dropped" version
-of the resulting polynomial, that is, coerced to a scalar).  The other
-mode of substitution is to replace a variable by another polynomial:
+of the resulting polynomial, that is, coerced to a scalar).  The idiom
+also allows one to substitute a variable for an ```mvp``` object:
 
 ```{r}
-subsmvp(S3,"z",as.mvp("a^2+2b^3"))
+subs(as.mvp("a+b+c"), a="x^6")
 ```
+
+Note carefully that ```subs()``` depends on the order of substitution:
+
+```{r}
+subs(as.mvp("a+b+c"), a="x^6",x="1+a")
+subs(as.mvp("a+b+c"), x="1+a",a="x^6")
+```
+  
+### Pipes
+
+Substitution works well with pipes:
+
+```{r}
+as.mvp("a+b") %>% subs(a="a^2+b^2") %>% subs(b="x^6")
+```
+
 
 ## Differentiation
 
@@ -168,27 +181,56 @@ Differentiation is implemented.  First we have the ```deriv()```
 method:
 
 ```{r}
-S <- rmvp(5,4,6,4)
-S
-deriv(S,letters[1:3])
-deriv(S,rev(letters[1:3]))  # should be the same.
+(S <- as.mvp("a + 5 a^5*b^2*c^8 -3 x^2 a^3 b c^3"))
+deriv(S, letters[1:3])
+deriv(S, rev(letters[1:3]))  # should be the same.
 ```
 
-Also a slightly different form:```aderiv()```, here used to evaluate
+Also a slightly different form: ```aderiv()```, here used to evaluate
 $\frac{\partial^6S}{\partial a^3\partial b\partial c^2}$:
 
 ```{r}
-aderiv(S,a=3,b=1,c=2)
+aderiv(S, a = 3, b = 1, c = 2)
 ```
 
+
+Again, pipes work quite nicely:
+
+
+```{r}
+S %<>% aderiv(a=1,b=2) %>% subs(c="x^4") %>% `+`(as.mvp("o^99"))
+S
+```
+
+## Taylor series
+
+The package includes functionality to deal with Taylor and Laurent series:
+
+
+```{r}
+(X <- as.mvp("1+x+x^2 y")^3)
+taylor(X,3)        # terms with total power <= 3
+taylor(X,3,"x")    # terms with power of x <= 3
+onevarpow(X,3,"x") # terms with power of x == 3
+```
+
+```{r}
+## second order taylor expansion of f(x)=sin(x+y) for x=1.1, about x=1:
+sinxpy <- horner("x+y",c(0,1,0,-1/6,0,+1/120,0,-1/5040))  # sin(x+y)
+dx <- as.mvp("dx")
+t2 <- sinxpy  + aderiv(sinxpy,x=1)*dx + aderiv(sinxpy,x=2)*dx^2/2
+(t2 %<>% subs(x=1,dx=0.1))  # (Taylor expansion of sin(y+1.1), left in symbolic form)
+(t2 %>% subs(y=0.3))  - sin(1.4)  # numeric; should be small
+```
+
+       	     
 ## Negative powers
 
 The ```mvp``` package handles negative powers, although the idiom is not perfect and I'm still working on it.
 There is the ```invert()``` function:
 
 ```{r}
-p <- as.mvp("1+x+x^2 y")
-p
+(p <- as.mvp("1+x+x^2 y"))
 invert(p)
 ```
 
@@ -222,18 +264,20 @@ exploits the symbolic nature of the ```mvp``` package.
 ```{r}
 library("spray")
 library("mpoly")
-n <- 500
-k <- kahle(n,r=3,p=1:3,symbols=paste("x",sprintf("%03d",seq_len(n)),sep=""))
+n <- 100
+k <- kahle(n, r = 3, p = 1:3, symbols = paste0("x", sprintf("%03d", 1:n)))
 ```
 
 In the above, polynomial ```k``` has 500 terms of the form $xy^2z^3$.
 Coercing ```k``` to ```spray``` form would need a $500\times 500$
 matrix for the indices, almost every element of which would be zero.
-This makes the spray package slower:
+This makes [the __spray__ package](https://github.com/RobinHankin/spray) slower:
 
 ```{r}
-system.time(ignore <- k^2)
-system.time(ignore <- mvp_to_spray(k)^2) 
+library("microbenchmark")
+
+spray_k <- mvp_to_spray(k)
+microbenchmark( k^2, spray_k^2 )
 ```
 
 In the above, the first line uses ```mvp``` functionality, and the
