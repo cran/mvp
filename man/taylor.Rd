@@ -14,11 +14,11 @@ mvp_taylor_allvars(allnames,allpowers,coefficients, n)
 mvp_taylor_onepower_onevar(allnames, allpowers, coefficients, n, v)
 }
 \arguments{
-  \item{S}{mvp object}
+  \item{S}{Object of class \code{mvp}}
   \item{n}{Non-negative integer specifying highest order to be retained}
   \item{v}{Variable to take Taylor series with respect to.  If missing,
     total power of each term is used}
-  \item{allnames,allpowers,coefficients}{Components of mvp objects}
+  \item{allnames,allpowers,coefficients}{Components of \code{mvp} objects}
 }
 \details{
 
@@ -41,7 +41,10 @@ taylor(as.mvp("1+x+y")^3,2,"x")  # terms like y^3 are treated as constants
 
 p <- horner("x+y",1:4)
 
-onevarpow(p,3,"x")
+onevarpow(p,2,"x")   # coefficient of x^2
+onevarpow(p,3,"x")   # coefficient of x^3
+
+
 
 # Works well with pipes:
 
