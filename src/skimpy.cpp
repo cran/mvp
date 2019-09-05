@@ -1,6 +1,5 @@
 // -*- mode: C++; c-indent-level: 4; c-basic-offset: 4; indent-tabs-mode: nil; -*-
 
-#define container vector         // Could be 'vector' or 'deque' (both work but there may be performance differences)
 #define USE_UNORDERED_MAP true   // set to true for unordered_map; comment out to use plain stl map.
 
 #include <Rcpp.h>
@@ -17,13 +16,11 @@
 using namespace std;
 using namespace Rcpp; 
 
-typedef container <signed int> mypowers;  // a mypowers object is a container [vector or deque] of signed integers (the powers of the variables)
-typedef container <string> mynames;  // a mynames object is a container [vector or deque] of strings...
+typedef map <string, signed int> term; // A 'term' object is a map from string objects to a integers; thus a^2 b^3 is 'a' -> 2, 'b' -> 3
+typedef map <term, double> mvp;       // An 'mvp' object (MultiVariatePolynomial) is a map from a term object to a double.
+typedef map <string, double> subs;   // A 'subs' object is a map from a string object to a real value, used in variable substitutions; thus a=1.1, b=1.2 is the map {'a' -> 1.1, 'b' -> 2.2}
 
-typedef map <string, signed int> term; //... and a 'term' object is a map from a string object to an integer; thus a^2 b^3 is 'a' -> 2, 'b' -> 3
-typedef map <term, double> mvp;  // ... An 'mvp' object (MultiVariatePolynomial) is a map from a term object to a double.
-
-typedef map <string, double> subs; // A 'subs' object is a map from a string object to a real value, used in variable substitutions; thus a=1.1, b=1.2 is the map {'a' -> 1.1, 'b' -> 2.2}
+typedef map <signed int, mvp> series;  // used for Taylor series
 
 mvp zero_coefficient_remover(const mvp &X){
     mvp out;
@@ -178,7 +175,7 @@ mvp deriv(const mvp X, const string v){// differentiation: dX/dv, 'v' a single v
     return zero_coefficient_remover(out); // eliminates terms with no v
 }
 
-mvp taylor_onevar(const mvp X, const unsigned int n, const string v){
+mvp taylor_onevar(const mvp X, const string v, const unsigned int n){
     if(n < 0){throw std::range_error("power cannot be <0");} 
     mvp out=X;
     mvp::const_iterator it;  // sit == symbol iterator
@@ -193,7 +190,7 @@ mvp taylor_onevar(const mvp X, const unsigned int n, const string v){
     return out;
 }
 
-mvp taylor_onepower_onevar(const mvp X, const unsigned int n, const string v){
+mvp taylor_onepower_onevar(const mvp X, const string v, const unsigned int n){
     mvp jj,out;
     term xn;
     mvp::const_iterator it;  // sit == symbol iterator
@@ -243,19 +240,19 @@ mvp taylor_allvars(const mvp X, const unsigned int n){  // truncated Taylor seri
 // [[Rcpp::export]]
 List mvp_taylor_onevar(
               const List &allnames, const List &allpowers, const NumericVector &coefficients,
-              const NumericVector   &n,
-              const CharacterVector &v
+              const CharacterVector &v,
+              const NumericVector   &n
               ){
-    return retval(taylor_onevar(prepare(allnames,allpowers,coefficients), n[0], (string) v[0]));
+    return retval(taylor_onevar(prepare(allnames,allpowers,coefficients),  (string) v[0], n[0]));
 }
 
 // [[Rcpp::export]]
 List mvp_taylor_onepower_onevar(
               const List &allnames, const List &allpowers, const NumericVector &coefficients,
-              const NumericVector   &n,
-              const CharacterVector &v
+              const CharacterVector &v,
+              const NumericVector   &n
               ){
-    return retval(taylor_onepower_onevar(prepare(allnames,allpowers,coefficients), n[0], (string) v[0]));
+    return retval(taylor_onepower_onevar(prepare(allnames,allpowers,coefficients), (string) v[0], n[0]));
 }
 
 // [[Rcpp::export]]
@@ -397,7 +394,78 @@ List mvp_substitute_mvp(
 }                                            // function mvp_substitute() closes
 
 
+// [[Rcpp::export]]
+NumericVector mvp_vectorised_substitute(
+              const List &allnames, const List &allpowers, const NumericVector &coefficients,    // original mvp
+              const NumericVector &M, const int &nrows, const int &ncols, const CharacterVector &v // things to substitute in
+
+    ){
+
+    const mvp X = prepare(allnames, allpowers, coefficients);  // original mvp object
+    subs s; 
+    term::const_iterator it;
+    mvp::const_iterator ix;
+    double w;
+    Rcpp::NumericVector out(nrows);
+    
+    for(int i=0 ; i<nrows ; i++){             // main loop, one iteration per row of M
+        out[i] = 0;                            // initialize at zero
+        s.clear();                              // clear s before we populate it 
+        for(int j=0 ; j<ncols ; j++){            // sic; we are going through row i of M
+            s[(string) v[j]] = M[j*nrows + i];    // populate s with row i of M
+        }                                          // j loop closes 
+        for(ix = X.begin() ; ix != X.end() ; ++ix){ // iterate through (mvp) X
+            const term t = ix->first;                // "t" is a single _term_ of (mvp) X
+            w = ix->second;                           // w =  (double) coefficient of this term
+            for(it=t.begin() ; it != t.end() ; ++it){// iterate through the symbols in term "t" for one that matches the substitution symbol
+                w *= pow(s[it->first], it->second); // the meat
+            }                                      // it loop closes
+        out[i] += w;                             // also meat, I guess
+        }                                       // i loop closes
+    }
+    return out;
+}
+
+series mvp_to_series(const mvp X, const string var){
+    series out;
+    mvp jj;
+    term::iterator it;
+    mvp::const_iterator ix;
+    
+    for(ix=X.begin() ; ix!=X.end() ; ++ix){ // iterate through (mvp) X
+        const term t = ix->first;          // ix->first is a term and ix->second its coefficient
+        term tt = t;                      // create a copy of t that we can modify
+        const signed int p = tt[var];    // p is the power of var (zero if var is absent from t)
+        tt.erase(var);                  // remove var from tt (null operation if p=0);
+        jj.clear();                    // erase single-term mvp object jj
+        jj[tt] = ix->second;          // map the reduced term tt to the original coefficient of t
+        out[p] = sum(out[p],jj);     // should be "out[p] += jj;"
+    }                               // main loop closes
+    return out;
+}
 
 
-                
-
+// [[Rcpp::export]]
+List mvp_to_series(
+const List &allnames, const List &allpowers, const NumericVector &coefficients,
+    const CharacterVector &v    // v[0] is a symbol
+    ){
+        
+        signed int i;
+        series::const_iterator io;
+        
+        series out = mvp_to_series(prepare(allnames,allpowers,coefficients), (string) v[0]);
+        
+        List mvpList(out.size());
+        NumericVector power(out.size());
+        
+        for(io=out.begin(), i=0;  io != out.end() ; ++io, i++){
+            mvpList[i] = retval(io->second);
+            power[i] = io->first;
+        }
+        
+        return List::create(
+            Named("mvp") = mvpList,
+            Named("varpower") = power
+            );
+}

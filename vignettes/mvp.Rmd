@@ -151,8 +151,16 @@ object.  We may subsitute for the other variables:
 subs(S3, x = 1, y = 2, z = 3)
 ```
 
-(in this case, the default behaviour is to return a "dropped" version
-of the resulting polynomial, that is, coerced to a scalar).  The idiom
+(in this case, the default behaviour is to return the the resulting
+polynomial coerced to a scalar).  We can suppress the coercion using
+the `lose` argument:
+
+```{r}
+subs(S3, x = 1, y = 2, z = 3,lose=FALSE)
+```
+
+
+The idiom
 also allows one to substitute a variable for an ```mvp``` object:
 
 ```{r}
@@ -209,9 +217,9 @@ The package includes functionality to deal with Taylor and Laurent series:
 
 ```{r}
 (X <- as.mvp("1+x+x^2 y")^3)
-taylor(X,3)        # terms with total power <= 3
-taylor(X,3,"x")    # terms with power of x <= 3
-onevarpow(X,3,"x") # terms with power of x == 3
+trunc(X,3)         # truncate, retain only terms with total power <= 3
+trunc1(X,x=3)    # truncate, retain only terms with  power of x <= 3
+onevarpow(X,x=3) # retain only terms with power of x == 3
 ```
 
 ```{r}
@@ -223,8 +231,71 @@ t2 <- sinxpy  + aderiv(sinxpy,x=1)*dx + aderiv(sinxpy,x=2)*dx^2/2
 (t2 %>% subs(y=0.3))  - sin(1.4)  # numeric; should be small
 ```
 
-       	     
+Function `series()` will decompose an `mvp` object into a power series in a single variable:
+
+```{r}
+p <- as.mvp("a^2 x b + x^2 a b + b c x^2 + a b c + c^6 x")
+p
+series(p,'x')
+```
+
+This works nicely with `subs()` if we wish to take a power series
+about `x-v`, where `v` is any `mvp` object.  For example:
+
+```{r}
+p %>% subs(x="xmv+a+b") %>% series("xmv") 
+```
+
+is a series in powers of `x-a-b`.  We may perform a consistency check
+by a second substitution, returning us to the original expression:
+
+```{r}
+p == p %>% subs(x="xmv+a+b") %>% subs(xmv="x-a-b")
+```
+
+If function `series()` is given a variable name ending in `_m_foo`,
+where `foo` is any variable name, then this is typeset as `(x-foo)`.
+For example:
+
+```{r}
+as.mvp('x^3 + x*a') %>% subs(x="x_m_a + a") %>% series("x_m_a")
+```
+
+So above we see the expansion of $x^2+ax$ in powers of $x-a$.  If we
+want to see the expansion of a mvp in terms of a more complicated
+expression then it is better to use a nonce variable `v`:
+
+```{r}
+as.mvp('x^2 + x*a+b^3') %>% subs(x="x_m_v + a^2+b") %>% series("x_m_v")
+```
+
+where it is understood that $v=a+b^2$.  Function `taylor()` is a
+convenience wrapper that does some of the above in one step:
+
+```{r}
+p <- as.mvp("1+x-x*y+a")^2
+taylor(p,'x','a')
+```
+
+But it's not as good as I expected it to be and frankly it's overkill.
+
+## Extraction
+
+Given a multivariate polynomial, one often needs to extract certain
+terms.  Because the terms of an `mvp` object have an
+implementation-dependent order, this can be difficult.  But we can use
+function `onevarpow()`:
+
+
+```{r}
+P <- as.mvp("1 + z + y^2 + x*z^2 +  x*y")^4
+onevarpow(P,x=1,y=2)
+```
+
+
+
 ## Negative powers
+
 
 The ```mvp``` package handles negative powers, although the idiom is not perfect and I'm still working on it.
 There is the ```invert()``` function:

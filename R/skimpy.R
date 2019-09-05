@@ -55,7 +55,7 @@ coeffs <- function(x){x[[3]]}  # accessor methods end here
   } else if(is.character(x)){
     return(mpoly_to_mvp(mp(x)))
   } else if(is.list(x)){
-    return(mvp(x))
+    return(mvp(vars=x$names,powers=x$power,coeffs=x$coeffs))
   } else if(is.numeric(x)){
     return(numeric_to_mvp(x))
   } else {
@@ -164,17 +164,21 @@ coeffs <- function(x){x[[3]]}  # accessor methods end here
   }
 }
 
-setGeneric("drop",function(x){standardGeneric("drop")})
-`drop` <- function(x){UseMethod("drop")}
-`drop` <- function(S){
-    if((length(vars(S))==1) & (length(vars(S)[[1]])==0)){
-        return(coeffs(S))
+`is.constant` <- function(x){length(allvars(x))==0}
+
+setGeneric("lose",function(x){standardGeneric("lose")})
+`lose` <- function(x){UseMethod("lose",x)}
+`lose.mvp` <- function(x){
+    if(is.zero(x)){
+      return(0)
+    } else if((length(vars(x))==1) & (length(vars(x)[[1]])==0)){
+      return(coeffs(x))
     } else {
-        return(S)
+      return(x)
     }
 }
 
-`subs` <- function(S,...,drop=TRUE){
+`subs` <- function(S,...,lose=TRUE){
   sb <- list(...)
   v <- names(sb)
 
@@ -182,19 +186,19 @@ setGeneric("drop",function(x){standardGeneric("drop")})
   for(i in seq_along(sb)){
     out <- subsmvp(out,v[i],as.mvp(sb[[i]]))
   }
-  if(drop){
-    return(drop(out))
+  if(lose){
+    return(lose(out))
   } else {
     return(out)
   }
 }
 
-`subsy` <- function(S, ..., drop=TRUE){
+`subsy` <- function(S, ..., lose=TRUE){
     sb <- unlist(list(...))
     jj <- mvp_substitute(S[[1]],S[[2]],S[[3]],names(sb),as.vector(sb))
     out <- mvp(jj[[1]],jj[[2]],jj[[3]])
-    if(drop){
-        return(drop(out))
+    if(lose){
+        return(lose(out))
     } else {
         return(out)
     }
@@ -206,6 +210,20 @@ setGeneric("drop",function(x){standardGeneric("drop")})
       X[[1]],X[[2]],X[[3]],
       v)
     return(mvp(jj[[1]],jj[[2]],jj[[3]]))
+}
+
+`subvec` <- function(S, ...){
+  jj <- list(...)
+    if(is.matrix(jj[[1]])){
+      M <- jj[[1]]
+    } else { 
+      M <- do.call("cbind",jj)
+    }
+   
+    if(is.null(colnames(M))){stop("Null symbols given: you need to name the ellipsis arguments or pass a matrix with column names")}
+    out <- mvp_vectorised_substitute(S[[1]], S[[2]], S[[3]], as.double(c(M)), nrow(M), ncol(M), colnames(M))
+    names(out) <- rownames(M)
+    return(out)
 }
 
 `as.function.mvp` <- function(x, ...){
@@ -272,16 +290,121 @@ setGeneric("aderiv",function(x){standardGeneric("aderiv")})
   }
 }
 
-`taylor` <- function(S,n,v){
-  if(missing(v)){
-    jj <- mvp_taylor_allvars(allnames=S[[1]],allpowers=S[[2]],coefficients=S[[3]], n)
-  } else {
-    jj <- mvp_taylor_onevar (allnames=S[[1]],allpowers=S[[2]],coefficients=S[[3]], n, v)
-  }
-  return(mvp(jj[[1]],jj[[2]],jj[[3]]))
+`trunc` <- function(S,n){
+    jj <- mvp_taylor_allvars(allnames=S[[1]],allpowers=S[[2]],coefficients=S[[3]],n)
+    return(mvp(jj[[1]],jj[[2]],jj[[3]]))
 }
 
-`onevarpow` <- function(S,n,v){
-   jj <- mvp_taylor_onepower_onevar(allnames=S[[1]],allpowers=S[[2]],coefficients=S[[3]], n, v)
-   return(mvp(jj[[1]],jj[[2]],jj[[3]]))
+`trunc1` <- function(S,...){
+  sb <- list(...)
+  v <- names(sb)
+  for(i in seq_along(sb)){
+    jj <- mvp_taylor_onevar(allnames=S[[1]],allpowers=S[[2]],coefficients=S[[3]], v[i], sb[[i]])
+    S <- mvp(jj[[1]],jj[[2]],jj[[3]])
+  }
+  return(S)
 }
+
+`onevarpow` <- function(S,...){
+  sb <- list(...)
+  v <- names(sb)
+  for(i in seq_along(sb)){
+    jj <- mvp_taylor_onepower_onevar(allnames=S[[1]],allpowers=S[[2]],coefficients=S[[3]], v[i],sb[[i]])
+    S <- mvp(jj[[1]],jj[[2]],jj[[3]])
+  }
+  return(S)
+}
+
+`series` <- function(S,v,showsymb=TRUE){
+  o <-   mvp_to_series(allnames=S[[1]],allpowers=S[[2]],coefficients=S[[3]], as.character(v))
+  o[[1]] <- lapply(o[[1]],as.mvp)  # o[[1]] %<>% lapply(as.mvp)
+  if(showsymb){v <- sub("^(.*)_m_(.*)", "(\\1-\\2)", v, perl=TRUE)}
+  o <- c(o,variablename=v)  # add the variable
+  class(o) <- "series"
+  return(o)
+}
+
+`print.series` <- function(x, ...){
+  out <- ""
+  for(i in seq_along(x[[1]])){
+    if(i>1){out <- paste(out, " + ")}
+    out <- paste(
+        out, x$variablename, "^", x$varpower[i],
+        getOption("mvp_mult_symbol"),
+        "(",
+        capture.output(print(mpoly::as.mpoly(x[[1]][[i]]))),
+        ")",
+        sep="")
+  }
+  cat(strsplit(out,split=" ")[[1]],fill=TRUE)
+  cat("\n")
+  return(invisible(out))
+}
+
+`namechanger` <- function(x,old,new){
+  sub(
+      pattern = paste("^", old, "$", sep=""),
+      replacement = new,
+      x)
+}
+
+`varchange` <- function(S, ...){
+  sb <- list(...)
+  for(i in seq_along(sb)){
+    S[[1]] <- lapply(S[[1]], function(x){namechanger(x,names(sb)[i],sb[[i]])})
+  }
+  return(mvp(S[[1]],S[[2]],S[[3]]))
+}
+
+`varchange_formal` <- function(S,old,new){
+  stopifnot(length(old) == length(new))
+  for(i in seq_along(old)){
+    S[[1]] <- lapply(S[[1]], function(x){namechanger(x,old[i],new[i])})
+  }
+  return(mvp(S[[1]],S[[2]],S[[3]]))
+}
+
+`taylor` <- function(S,vx,va,debug=FALSE){# basically: p %>% subs(x="x_m_a + a") %>% series("x_m_a")
+    ## trying to do: series(subs(p,x="x_m_a + a"), "x_m_a")
+
+    string <- paste('series(subs(p,',vx,'="',vx,"_m_", va, " + ", va, '"), "',vx,"_m_",va,'")',sep="")
+
+    if(debug){
+        return(noquote(string))
+    } else {
+        return(eval(parse(text = string)))
+    }
+}
+
+`nterms` <- function(object){length(object[[1]])}
+
+`summary.mvp` <- function(object, ...){
+  out <- list(
+      no.of.terms         = length(object[[1]]),
+      no.of.symbols       = length(unique(c(object[[1]],recursive=TRUE))),
+      highest.power       = max(c(object[[2]],recursive=TRUE)),
+      longest.term        = max(unlist(lapply(object[[1]],length))),
+      has.negative.powers = any(c(object[[2]],recursive=TRUE) < 0),
+      constant            = constant(object)
+      )
+    class(out) <- "summary.mvp"
+    return(out)
+}
+
+`print.summary.mvp` <- function(x, ...){
+  cat("mvp object.\n")
+  cat("Number of terms:"           , x[[1]],"\n") 
+  cat("Number of distinct symbols:", x[[2]],"\n") 
+  cat("Highest power:"             , x[[3]],"\n") 
+  cat("Longest term: "             , x[[4]],"\n")
+  cat("Has negative powers: "      , x[[5]],"\n")
+  cat("Constant: "                 , x[[6]],"\n")
+}
+
+`rtypical` <- function(object,n=3){
+  K <- constant(object)
+  constant(object) <- 0
+  wanted <- sample(nterms(object),n,replace=FALSE)
+  K + mvp(object[[1]][wanted],object[[2]][wanted],object[[3]][wanted])
+}
+
