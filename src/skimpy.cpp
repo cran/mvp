@@ -1,7 +1,7 @@
 // -*- mode: C++; c-indent-level: 4; c-basic-offset: 4; indent-tabs-mode: nil; -*-
 
 #define USE_UNORDERED_MAP true   // set to true for unordered_map; comment out to use plain stl map.
-
+#define STRICT_R_HEADERS
 #include <Rcpp.h>
 #include <cmath>
 
@@ -16,7 +16,7 @@
 using namespace std;
 using namespace Rcpp; 
 
-typedef map <string, signed int> term; // A 'term' object is a map from string objects to a integers; thus a^2 b^3 is 'a' -> 2, 'b' -> 3
+typedef map <string, signed int> term; // A 'term' object is a map from string objects to integers; thus a^2 b^3 is 'a' -> 2, 'b' -> 3
 typedef map <term, double> mvp;       // An 'mvp' object (MultiVariatePolynomial) is a map from a term object to a double.
 typedef map <string, double> subs;   // A 'subs' object is a map from a string object to a real value, used in variable substitutions; thus a=1.1, b=1.2 is the map {'a' -> 1.1, 'b' -> 2.2}
 
@@ -38,7 +38,7 @@ term zero_power_remover(const term &t){
     term out;
     for(term::const_iterator it=t.begin() ; it != t.end() ; ++it){
         const string var = it->first;
-        const int power = it->second;
+        const unsigned int power = it->second;
         if(power != 0){
             out[var] += power;
         }
@@ -46,20 +46,17 @@ term zero_power_remover(const term &t){
     return out;
 }
     
-
-
 List retval(const mvp &X){   // takes a mvp object and returns a mpoly-type list suitable for return to R
     unsigned int i,j;
     mvp::const_iterator it;
     term::const_iterator ic;
-    term oneterm;
     
-    unsigned int n=X.size();
+    const unsigned int n=X.size();
     List namesList(n), powerList(n);
     NumericVector coeff_vec(n);
 
     for(it = X.begin(), i=0 ; it != X.end() ; ++it, i++){
-        oneterm = it->first; // oneterm is a 'term' object, a map from strings to integers
+        const term oneterm = it->first; // oneterm is a 'term' object, a map from strings to integers
         const unsigned int r = oneterm.size(); // 'r' is the number of variables in oneterm; thus 5x^2*y*z^6 has r=3
         
         CharacterVector names(r); 
@@ -89,11 +86,11 @@ mvp prepare(const List allnames, const List allpowers, const NumericVector coeff
 
     for(unsigned int i=0 ; i<n ; i++){  // need to use int i because we are iterating through a list
         unsigned int j; // scope of j should extend beyond the for(j) loop but not the i loop
-        SEXP jj = allnames[i]; 
-        Rcpp::CharacterVector names(jj);
+        const SEXP jj = allnames[i]; 
+        const Rcpp::CharacterVector names(jj);
 
-        SEXP kk = allpowers[i]; 
-        Rcpp::IntegerVector powers(kk);
+        const SEXP kk = allpowers[i]; 
+        const Rcpp::IntegerVector powers(kk);
 
         const unsigned int r=names.size();
              
@@ -118,14 +115,13 @@ mvp prepare(const List allnames, const List allpowers, const NumericVector coeff
 
 mvp product(const mvp X1, const mvp X2){
     mvp out;
-    term t1new,t2;
     
     for(mvp::const_iterator it1=X1.begin() ; it1 != X1.end() ; ++it1){
         const term t1=it1->first;
         const double c1=it1->second; // coefficient
         for(mvp::const_iterator it2=X2.begin() ; it2 != X2.end() ; ++it2){
-            t1new = t1;// we will modify t1new by adding stuff to it
-            t2=it2->first;
+            term t1new = t1;// we will modify t1new by adding stuff to it
+            const term t2=it2->first;
             for(term::const_iterator is=t2.begin() ; is != t2.end() ; ++is){
                 t1new[is->first] += is->second;  // add the powers of the variables in the two terms
             }  // is loop closes
@@ -175,7 +171,7 @@ mvp deriv(const mvp X, const string v){// differentiation: dX/dv, 'v' a single v
     return zero_coefficient_remover(out); // eliminates terms with no v
 }
 
-mvp taylor_onevar(const mvp X, const string v, const unsigned int n){
+mvp taylor_onevar(const mvp X, const string v, const signed int n){
     if(n < 0){throw std::range_error("power cannot be <0");} 
     mvp out=X;
     mvp::const_iterator it;  // sit == symbol iterator
@@ -190,13 +186,13 @@ mvp taylor_onevar(const mvp X, const string v, const unsigned int n){
     return out;
 }
 
-mvp taylor_onepower_onevar(const mvp X, const string v, const unsigned int n){
+mvp taylor_onepower_onevar(const mvp X, const string v, const signed int n){
     mvp jj,out;
     term xn;
     mvp::const_iterator it;  // sit == symbol iterator
     if(n==0){  // n=0 means we seek terms with no symbol v in them
         for(it=X.begin() ; it != X.end() ; ++it){      // iterate through X
-            term xt=it->first;                         // it->second is the coefficient
+            const term xt=it->first;                   // it->second is the coefficient
             jj.clear();
             if(xt.find(v) == xt.end()){ // if symbol v *not* present in xt, then:
                 jj[xt] = it->second;    // (1) populate mvp jj with a single pair
@@ -220,7 +216,7 @@ mvp taylor_onepower_onevar(const mvp X, const string v, const unsigned int n){
     return out;
 }
 
-mvp taylor_allvars(const mvp X, const unsigned int n){  // truncated Taylor series
+mvp taylor_allvars(const mvp X, const signed int n){  // truncated Taylor series
     if(n < 0){throw std::range_error("power cannot be <0");} 
     term::const_iterator sit;  // sit == symbol iterator
     mvp::const_iterator it;  
@@ -243,7 +239,7 @@ List mvp_taylor_onevar(
               const CharacterVector &v,
               const NumericVector   &n
               ){
-    return retval(taylor_onevar(prepare(allnames,allpowers,coefficients),  (string) v[0], n[0]));
+    return retval(taylor_onevar(prepare(allnames,allpowers,coefficients), (string) v[0], n[0]));
 }
 
 // [[Rcpp::export]]
@@ -416,7 +412,7 @@ NumericVector mvp_vectorised_substitute(
         }                                          // j loop closes 
         for(ix = X.begin() ; ix != X.end() ; ++ix){ // iterate through (mvp) X
             const term t = ix->first;                // "t" is a single _term_ of (mvp) X
-            w = ix->second;                           // w =  (double) coefficient of this term
+            w = ix->second;                    // w =  (double) coefficient of this term
             for(it=t.begin() ; it != t.end() ; ++it){// iterate through the symbols in term "t" for one that matches the substitution symbol
                 w *= pow(s[it->first], it->second); // the meat
             }                                      // it loop closes

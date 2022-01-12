@@ -7,9 +7,10 @@
   return(out)
 }
 
-vars <- function(x){x[[1]]}
-powers <- function(x){x[[2]]}
-coeffs <- function(x){x[[3]]}  # accessor methods end here
+vars <- function(x)  {disord(x[[1]],hashcal(x))}
+powers <- function(x){disord(x[[2]],hashcal(x))}
+`coeffs` <- function(x){UseMethod("coeffs")}
+`coeffs.mvp` <- function(x){disord(x[[3]],hashcal(x))}
 
 `is.mvp` <- function(x){inherits(x,"mvp")}
 
@@ -29,9 +30,10 @@ coeffs <- function(x){x[[3]]}  # accessor methods end here
   return(TRUE)
 }
 
-`allvars` <- function(x){sort(unique(c(vars(x),recursive=TRUE)))}
+`allvars` <- function(x){sort(unique(c(elements(vars(x)),recursive=TRUE)))}
 
-`is.zero` <- function(x){
+`is.zero` <- function(x){UseMethod("is.zero")}
+`is.zero.mvp` <- function(x){
     length(vars(x))==0
 }
 
@@ -45,23 +47,15 @@ coeffs <- function(x){x[[3]]}  # accessor methods end here
     cat("\n")
 }
 
-`as.mvp` <- function(x,...){
-  if(is.mvp(x)){
-    return(x)
-  } else if(is.mpoly(x)){
-    return(mpoly_to_mvp(x))
-  } else if(inherits(x,"spray")){
-    return(spray_to_mvp(x,...))
-  } else if(is.character(x)){
-    return(mpoly_to_mvp(mp(x)))
-  } else if(is.list(x)){
-    return(mvp(vars=x$names,powers=x$power,coeffs=x$coeffs))
-  } else if(is.numeric(x)){
-    return(numeric_to_mvp(x))
-  } else {
-    stop("not recognised")
-  }
-}
+setGeneric("as.mvp",function(x){standardGeneric("as.mvp")})
+`as.mvp` <- function(x){UseMethod("as.mvp",x)}
+
+`as.mvp.mvp` <- function(x){x}
+`as.mvp.mpoly` <- function(x){mpoly_to_mvp(x)}
+## as.mvp.freealg() defined in inst/freealg_mvp.R
+`as.mvp.character` <- function(x){mpoly_to_mvp(mp(x))}
+`as.mvp.list` <- function(x){mvp(vars=x$names,powers=x$power,coeffs=x$coeffs)}
+`as.mvp.numeric` <- function(x){numeric_to_mvp(x)}
 
 `mpoly_to_mvp` <- function(m){
   mvp(
@@ -81,42 +75,7 @@ coeffs <- function(x){x[[3]]}  # accessor methods end here
     return(out)
 }    
 
-`spray_to_mvp` <- function(L,symbols=letters){
-  I <- L$index
-  mvp(
-      vars   = sapply(seq_len(nrow(I)),function(i){symbols[which(I[i,] != 0)]},simplify=FALSE),
-      powers = sapply(seq_len(nrow(I)),function(i){          I[i,I[i,] != 0 ]},simplify=FALSE),
-      coeffs = L$value
-      )
-}
-
-`mvp_to_spray` <- function(S){
-    cons <- constant(S)
-    constant(S) <- 0
-    vS <- vars(S)
-    pS <- powers(S)
-    av <- allvars(S)
-
-    M <- matrix(0,length(powers(S)),length(av))
-    for(i in seq_len(nrow(M))){
-        v <- vS[[i]]
-        p <- pS[[i]]
-
-        M[i,sapply(v,function(x){which(x==av)})] <- p
-    }
-
-    if(cons==0){
-      jj <- coeffs(S)
-    } else {
-      M <- rbind(M,0)
-      jj <- c(coeffs(S),cons)
-    }
-    out <- list(M,jj)
-    class(out) <- "spray"
-    return(out)
-}
-
-`rmvp` <- function(n,size=6,pow=6,symbols=6){
+`rmvp` <- function(n=7,size=6,pow=6,symbols=6){
   if(is.numeric(symbols)){symbols <- letters[seq_len(symbols)]}
     mvp(
         vars   = replicate(n,sample(symbols,size,replace=TRUE),simplify=FALSE),
@@ -127,16 +86,19 @@ coeffs <- function(x){x[[3]]}  # accessor methods end here
 
 `coeffs<-` <- function(x,value){UseMethod("coeffs<-")}
 `coeffs<-.mvp` <- function(x,value){
-    if(length(value) != 1){
-        stop('order of coefficients not defined.  Idiom "coeffs(x) <- value" is meaningful only if value is unchanged on reordering, here we require "value" to have length 1') 
-    }
-    x[[3]][] <- value
-    return(mvp(x[[1]],x[[2]],x[[3]]))
+  jj <- coeffs(x)
+  if(is.disord(value)){
+    stopifnot(consistent(vars(x),value))
+    stopifnot(consistent(powers(x),value))
+    jj <- value
+  } else {
+    jj[] <- value  # the meat
+  }
+  mvp(vars(x),powers(x),jj)
 }
-    
 
-"constant" <- function(x){UseMethod("constant")}
-"constant<-" <- function(x, value){UseMethod("constant<-")}
+`constant` <- function(x){UseMethod("constant")}
+`constant<-` <- function(x, value){UseMethod("constant<-")}
 
 `constant.mvp` <- function(x){
   wanted <- sapply(x$names,function(x){length(x)==0})
@@ -157,9 +119,9 @@ coeffs <- function(x){x[[3]]}  # accessor methods end here
     return(mvp(vars(x),powers(x),coeffs(x)))
   } else {  # no constant term in x... 
     return(mvp(     # ...so an extra (constant) term must be added:
-    c(vars(x),list(character(0))), # to the variables
-    c(powers(x),list(integer(0))), # and the powers
-    c(coeffs(x),value))            # and coeffs (with the correct value)
+    c(elements(vars(x)),list(character(0))), # to the variables
+    c(elements(powers(x)),list(integer(0))), # and the powers
+    c(elements(coeffs(x)),value))            # and coeffs (with the correct value)
     )
   }
 }
@@ -172,8 +134,10 @@ setGeneric("lose",function(x){standardGeneric("lose")})
     if(is.zero(x)){
       return(0)
     } else if((length(vars(x))==1) & (length(vars(x)[[1]])==0)){
-      return(coeffs(x))
-    } else {
+        out <- coeffs(x)
+        attributes(out) <- NULL
+        return(unclass(out))
+    } else {  # er, nothing to lose
       return(x)
     }
 }
@@ -247,7 +211,7 @@ setGeneric("aderiv",function(x){standardGeneric("aderiv")})
 `invert` <- function(p,v){
   p <- as.mvp(p)
   vp <- vars(p)
-  if(missing(v)){v <- unique(unlist(vp))}
+  if(missing(v)){v <- unique(unlist(elements(vp)))}
   pp <- powers(p)
   for(i in seq_along(powers(p))){
     ## pp[[i]][vp[[i]] %in% v]  %<>% `*`(-1)
@@ -255,7 +219,6 @@ setGeneric("aderiv",function(x){standardGeneric("aderiv")})
   }
   mvp(vp,pp,coeffs(p))
 }
-
 
 `kahle`  <- function(n=26,r=1,p=1,coeffs=1,symbols=letters){
   if(n > length(symbols)){stop("not enough symbols")}
@@ -272,7 +235,6 @@ setGeneric("aderiv",function(x){standardGeneric("aderiv")})
       coeffs = coeffs
   )
 }
-
 
 `horner` <- function(P, v) {  # inspired by Rosettacode
   P <- as.mvp(P)
@@ -303,6 +265,13 @@ setGeneric("aderiv",function(x){standardGeneric("aderiv")})
     S <- mvp(jj[[1]],jj[[2]],jj[[3]])
   }
   return(S)
+}
+
+`truncall` <- function(S,n){
+  a <- allvars(S)
+  v <- rep(n,length(a))
+  names(v) <- a
+  do.call(trunc1,c(list(S),as.list(v)))
 }
 
 `onevarpow` <- function(S,...){
@@ -365,9 +334,9 @@ setGeneric("aderiv",function(x){standardGeneric("aderiv")})
 }
 
 `taylor` <- function(S,vx,va,debug=FALSE){# basically: p %>% subs(x="x_m_a + a") %>% series("x_m_a")
-    ## trying to do: series(subs(p,x="x_m_a + a"), "x_m_a")
+    ## trying to do: series(subs(S,x="x_m_a + a"), "x_m_a")
 
-    string <- paste('series(subs(p,',vx,'="',vx,"_m_", va, " + ", va, '"), "',vx,"_m_",va,'")',sep="")
+    string <- paste('series(subs(S,',vx,'="',vx,"_m_", va, " + ", va, '"), "',vx,"_m_",va,'")',sep="")
 
     if(debug){
         return(noquote(string))

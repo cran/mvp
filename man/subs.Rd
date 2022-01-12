@@ -32,8 +32,11 @@ namechanger(x,old,new)
   is a character vector} 
 }
 \value{
-  Returns a multivariate polynomial, object of class \code{mvp}, or a
-  numeric vector (\code{subvec()}).
+  Functions \code{subs()}, \code{subsy()} and \code{subsmvp()} return a
+  multivariate polynomial unless \code{lose} is \code{TRUE} in which
+  case a length one numeric vector is returned.  Function
+  \code{subvec()} returns a numeric vector (sic! the output inherits its
+  order from the arguments).
 }
 \details{
 
@@ -51,11 +54,12 @@ mvp object algebraically equal to
 b x^2
 }
 
-Functions \code{subsy()} and \code{subsmpv()} are lower-level functions,
+Functions \code{subsy()} and \code{subsmvp()} are lower-level functions,
 not really intended for the end-user.  Function \code{subsy()}
 substitutes variables for numeric values (order matters if a variable is
-substitued more than once).  Function \code{subsmpv()} takes a \code{mvp}
-object and substitutes another \code{mvp} object for a specific symbol.
+substituted more than once).  Function \code{subsmpv()} takes a
+\code{mvp} object and substitutes another \code{mvp} object for a
+specific symbol.
 
 Function \code{subvec()} substitutes the symbols of \code{S} with
 numerical values.  It is vectorised in its ellipsis arguments with

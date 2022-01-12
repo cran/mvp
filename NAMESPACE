@@ -11,20 +11,38 @@ importFrom(magic, circulant)
 
 importFrom("utils" , "capture.output")
 
+
+importFrom("digest", "digest")
+importFrom("disordR","disord")
+importFrom("disordR","is.disord")
+importFrom("disordR","consistent")
+importFrom("disordR","elements")
+importFrom("disordR","%~%")
+importFrom("disordR","hashcal")
+
 S3method(as.mpoly,mvp)
 S3method(constant, mvp)
 S3method("constant<-", mvp)
+S3method("coeffs", mvp)
 S3method("coeffs<-", mvp)
 S3method(as.function, mvp)
 S3method(constant, mvp)
+S3method(is.zero, mvp)
 S3method(deriv, mvp)
 S3method(aderiv,mvp)
 S3method(lose,mvp)
 S3method(print,mvp)
 S3method(Ops,mvp)
-S3method(summary,mvp)
+
+S3method(as.mvp,mvp)
+S3method(as.mvp,mpoly)
+S3method(as.mvp,character)
+S3method(as.mvp,list)
+S3method(as.mvp,numeric)
+
+
+S3method(summary,mvp) 
 S3method(print, summary.mvp)
 
 S3method(constant, numeric)
-
 S3method(print,series)
