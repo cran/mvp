@@ -10,6 +10,7 @@ importFrom(partitions,compositions)
 importFrom(magic, circulant)
 
 importFrom("utils" , "capture.output")
+importFrom("numbers" , "eulersPhi")
 
 
 importFrom("digest", "digest")
@@ -19,6 +20,8 @@ importFrom("disordR","consistent")
 importFrom("disordR","elements")
 importFrom("disordR","%~%")
 importFrom("disordR","hashcal")
+importFrom("disordR","sort")
+importFrom("disordR","lapply")
 
 S3method(as.mpoly,mvp)
 S3method(constant, mvp)

@@ -40,11 +40,14 @@ powers <- function(x){disord(x[[2]],hashcal(x))}
 `print.mvp` <-  function(x, ...){
     cat("mvp object algebraically equal to\n")
     if(is.zero(x)){
-        print(mp("0"),...)
+        out <- mp("0")
     } else {
-        print(as.mpoly(x), ...)
+        out <- as.mpoly(x)
     }
+    out <- print(out,...,silent=TRUE)  # should use print.mpoly()
+    cat(paste(strwrap(out, getOption("width")), collapse="\n"))
     cat("\n")
+    return(invisible(x))
 }
 
 setGeneric("as.mvp",function(x){standardGeneric("as.mvp")})
@@ -133,7 +136,7 @@ setGeneric("lose",function(x){standardGeneric("lose")})
 `lose.mvp` <- function(x){
     if(is.zero(x)){
       return(0)
-    } else if((length(vars(x))==1) & (length(vars(x)[[1]])==0)){
+    } else if((length(vars(x))==1) & (length(elements(vars(x))[[1]])==0)){
         out <- coeffs(x)
         attributes(out) <- NULL
         return(unclass(out))
@@ -210,9 +213,9 @@ setGeneric("aderiv",function(x){standardGeneric("aderiv")})
 
 `invert` <- function(p,v){
   p <- as.mvp(p)
-  vp <- vars(p)
-  if(missing(v)){v <- unique(unlist(elements(vp)))}
-  pp <- powers(p)
+  vp <- elements(vars(p))
+  if(missing(v)){v <- unique(unlist(vp))}
+  pp <- elements(powers(p))
   for(i in seq_along(powers(p))){
     ## pp[[i]][vp[[i]] %in% v]  %<>% `*`(-1)
     pp[[i]][vp[[i]] %in% v] <- -pp[[i]][vp[[i]] %in% v]
@@ -377,3 +380,5 @@ setGeneric("aderiv",function(x){standardGeneric("aderiv")})
   K + mvp(object[[1]][wanted],object[[2]][wanted],object[[3]][wanted])
 }
 
+setGeneric("sort")
+setGeneric("lapply")
