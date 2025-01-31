@@ -15,13 +15,13 @@ test_that("Test suite test_aag.R",{
     expect_true(is.constant(as.mvp("1")))
     expect_false(is.constant(as.mvp("1+x")))
 
-    expect_true(subs(as.mvp("1+x+y"),x=2,y=5,lose=TRUE) == 8)
-    expect_error(subs(as.mvp("1+x+y"),x=2,y=5,lose=FALSE) == 8)
-    expect_true(subs(as.mvp("1+x+y"),x=2,y=5,lose=FALSE) == as.mvp(8))
+    expect_true(subs(as.mvp("1+x+y"),x=2,y=5,drop=TRUE) == 8)
+    expect_error(subs(as.mvp("1+x+y"),x=2,y=5,drop=FALSE) == 8)
+    expect_true(subs(as.mvp("1+x+y"),x=2,y=5,drop=FALSE) == as.mvp(8))
 
-    expect_true (subsy(as.mvp("1+x"),x=1,lose=TRUE )==2)
-    expect_error(subsy(as.mvp("1+x"),x=1,lose=FALSE)==2)
-    expect_true (subsy(as.mvp("1+x"),x=1,lose=FALSE)==as.mvp(2))
+    expect_true (subsy(as.mvp("1+x"),x=1,drop=TRUE )==2)
+    expect_error(subsy(as.mvp("1+x"),x=1,drop=FALSE)==2)
+    expect_true (subsy(as.mvp("1+x"),x=1,drop=FALSE)==as.mvp(2))
 
 
 
@@ -42,8 +42,14 @@ test_that("Test suite test_aag.R",{
       expect_silent(mvp_to_spray(as.mvp("1+x+x*y")))
       }
       
-set.seed(0)
-a <- rmvp(9)
-expect_error(coeffs(a)[coeffs(a)<3] + coeffs(a)[coeffs(a)>7])
+P <- horner("a+b",1:9)
+expect_error(coeffs(P)[coeffs(a)<3] + coeffs(a)[coeffs(a)>500])
+
+P <- as.mvp("-7*z + 3*x^34 - 2*z*x + 7*x*z*u + 1*x*y^5")
+expect_true(P[coeffs(P) < 3] ==  as.mvp("-7*z - 2*z*x + 1*x*y^5"))
+P[coeffs(P) < 3] <- 99
+expect_true(P == as.mvp("7 u x z + 99 x y^5 + 99 x z + 3 x^34 + 99 z"))
+expect_error(P[coeffs(P)==99] <- 1:3)
+
 
 })

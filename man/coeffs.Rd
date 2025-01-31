@@ -20,11 +20,15 @@
 \title{Functionality for \code{coeffs} objects}
 \description{
 
-Function \code{coeffs()} allows arithmetic operators to be used for the
-  coefficients of multivariate polynomials, bearing in mind that the
+  Function \code{coeffs()} allows arithmetic operators to be used for
+  the coefficients of multivariate polynomials, bearing in mind that the
   order of coefficients is not determined.  It uses the \code{disord}
   class of the \CRANpkg{disordR} package.
 
+\dQuote{Pure} extraction and replacement (as in \code{a[i]} and
+\code{a[i] <- value}) is implemented experimentally.  The code for
+extraction is cute but not particularly efficient.
+  
 }
 \usage{
 coeffs(x)
@@ -105,7 +109,8 @@ coeffs(x) <- value
   \code{a} becomes its square}; note that this operation is insensitive
   to the order of coefficients.  The whole shebang is intended to make
   idiom such as \code{coeffs(a) <- coeffs(a)\%\%2} possible (so we can
-  manipulate polynomials over finite rings, here \eqn{Z/2Z}).
+  manipulate polynomials over finite rings, here
+  \eqn{\mathbb{Z}/2\mathbb{Z}}{Z/2Z}).
 
   The replacement methods are defined so that an expression like
   \code{coeffs(a)[coeffs(a) > 5] <- 5} works as expected; the English

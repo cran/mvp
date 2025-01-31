@@ -113,7 +113,7 @@ mvp prepare(const List allnames, const List allpowers, const NumericVector coeff
     return zero_coefficient_remover(out);
 }
 
-mvp product(const mvp X1, const mvp X2){
+mvp product(const mvp &X1, const mvp &X2){
     mvp out;
     
     for(mvp::const_iterator it1=X1.begin() ; it1 != X1.end() ; ++it1){
@@ -135,7 +135,7 @@ mvp product(const mvp X1, const mvp X2){
     return zero_coefficient_remover(out);
 }
 
-mvp sum(const mvp X1, const mvp X2){
+mvp sum(const mvp &X1, const mvp &X2){
     mvp out=X1;
     
     for(mvp::const_iterator it2=X2.begin() ; it2 != X2.end() ; ++it2){
@@ -144,7 +144,7 @@ mvp sum(const mvp X1, const mvp X2){
     return zero_coefficient_remover(out);
 }
 
-mvp power(const mvp X, unsigned int n){
+mvp power_int(const mvp &X, unsigned int n){
     mvp out; // empty mvp object is the zero polynomial; X^0 is managed in R
     if(n<1){throw std::range_error("power cannot be <1");} 
     if(n==1){
@@ -158,7 +158,7 @@ mvp power(const mvp X, unsigned int n){
     return out;
 }
 
-mvp deriv(const mvp X, const string v){// differentiation: dX/dv, 'v' a single variable
+mvp deriv(const mvp &X, const string &v){// differentiation: dX/dv, 'v' a single variable
     mvp out;
 
     for(mvp::const_iterator it=X.begin() ; it != X.end() ; ++it){
@@ -171,7 +171,7 @@ mvp deriv(const mvp X, const string v){// differentiation: dX/dv, 'v' a single v
     return zero_coefficient_remover(out); // eliminates terms with no v
 }
 
-mvp taylor_onevar(const mvp X, const string v, const signed int n){
+mvp taylor_onevar(const mvp &X, const string &v, const signed int &n){
     if(n < 0){throw std::range_error("power cannot be <0");} 
     mvp out=X;
     mvp::const_iterator it;  // sit == symbol iterator
@@ -186,9 +186,8 @@ mvp taylor_onevar(const mvp X, const string v, const signed int n){
     return out;
 }
 
-mvp taylor_onepower_onevar(const mvp X, const string v, const signed int n){
+mvp taylor_onepower_onevar(const mvp &X, const string &v, const signed int &n){
     mvp jj,out;
-    term xn;
     mvp::const_iterator it;  // sit == symbol iterator
     if(n==0){  // n=0 means we seek terms with no symbol v in them
         for(it=X.begin() ; it != X.end() ; ++it){      // iterate through X
@@ -205,7 +204,7 @@ mvp taylor_onepower_onevar(const mvp X, const string v, const signed int n){
             jj.clear();
             if(xt.find(v) != xt.end()){  // if there *is* symbol v in term...
                 if(xt[v]==n){            // ...and if its power equals n, then:
-                    xn=xt;               // (1) create a new term,
+                    term xn=xt;               // (1) create a new term,
                     xn.erase(v);         // (2) remove v from the new term, 
                     jj[xn] = it->second; // (3) populate jj with a single key-value pair
                     out = sum(out, jj);  // (4) add jj to out.
@@ -216,7 +215,7 @@ mvp taylor_onepower_onevar(const mvp X, const string v, const signed int n){
     return out;
 }
 
-mvp taylor_allvars(const mvp X, const signed int n){  // truncated Taylor series
+mvp taylor_allvars(const mvp &X, const signed int &n){  // truncated Taylor series
     if(n < 0){throw std::range_error("power cannot be <0");} 
     term::const_iterator sit;  // sit == symbol iterator
     mvp::const_iterator it;  
@@ -297,7 +296,7 @@ List mvp_power(
               const List &allnames, const List &allpowers, const NumericVector &coefficients,
               const NumericVector &n
               ){
-    return retval(power(prepare(allnames,allpowers,coefficients), n[0]));
+    return retval(power_int(prepare(allnames,allpowers,coefficients), n[0]));
 }
 
 // [[Rcpp::export]]
@@ -343,10 +342,10 @@ List mvp_substitute(
             if(it == t.end()){                   // if(no match)...
                 Xnew[t] = coeff;                 // ...then include term t and coeff unchanged in Xnew
 	    } else {                             // else a match found.  If so, we want to effect 3x^2*y^5 /. {x -> 2} giving 12*y^3 [mathematica notation];  do three things:
-              const signed int n=it->second;     // (1) extract the power, n, *before* erasing the iterator;
+              const signed int p=it->second;     // (1) extract the power, p, *before* erasing the iterator;
 	      t.erase(it);                       // (2) Set the power of the matched symbol to zero (in t); and
 	      Xnew[t] +=                         // (3) Add a new element to Xnew with term (updated) t...
-              coeff*pow(i->second,n);            // ... and coefficient coeff*<var>^n using the saved value of n; note use of "+=" in case there is another term the same
+              coeff*pow(i->second,p);            // ... and coefficient coeff*<var>^n using the saved value of n; note use of "+=" in case there is another term the same
             }                                    // if(match found) closes
 	}                                        // j loop closes: go on to look at the next element of X
         X = Xnew;                                // update X to reflect changes
@@ -382,7 +381,7 @@ List mvp_substitute_mvp(
             t.erase(it);                     // Remove the matched symbol from t
             Xtemp.clear();                   // Clear Xtemp, now the zero polynomial
             Xtemp[t] = coeff;                // Algebraically, Xnew = coeff*term-without-match
-            Xtemp = product(Xtemp, power(Y, psubs));  // this is the "meat" of the function
+            Xtemp = product(Xtemp, power_int(Y, psubs));  // this is the "meat" of the function
             Xnew = sum(Xnew,Xtemp);          // Take cumulative sum
         }                                    // if(match found) closes
     }                                        // i loop closes: go on to consider the next element of X
@@ -422,10 +421,9 @@ NumericVector mvp_vectorised_substitute(
     return out;
 }
 
-series mvp_to_series(const mvp X, const string var){
+series mvp_to_series(const mvp &X, const string &var){
     series out;
     mvp jj;
-    term::iterator it;
     mvp::const_iterator ix;
     
     for(ix=X.begin() ; ix!=X.end() ; ++ix){ // iterate through (mvp) X

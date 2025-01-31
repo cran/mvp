@@ -2,15 +2,17 @@
   stopifnot(is_ok_mvp(vars,powers,coeffs))
   out <- simplify(vars,powers,coeffs)  # simplify() is defined in
                                        # RcppExports.R; it returns a
-                                       # list
+                                        # list
+  out <- c(out,list(hashcal(out)))
   class(out) <- "mvp"   # this is the only time class() is set to "mvp"
   return(out)
 }
 
-vars <- function(x)  {disord(x[[1]],hashcal(x))}
-powers <- function(x){disord(x[[2]],hashcal(x))}
 `coeffs` <- function(x){UseMethod("coeffs")}
-`coeffs.mvp` <- function(x){disord(x[[3]],hashcal(x))}
+
+`vars`       <- function(x){disord(x[[1]],hashcal(unclass(x)))}
+`powers`     <- function(x){disord(x[[2]],hashcal(unclass(x)))}
+`coeffs.mvp` <- function(x){disord(x[[3]],hashcal(unclass(x)))}
 
 `is.mvp` <- function(x){inherits(x,"mvp")}
 
@@ -78,13 +80,29 @@ setGeneric("as.mvp",function(x){standardGeneric("as.mvp")})
     return(out)
 }    
 
-`rmvp` <- function(n=7,size=6,pow=6,symbols=6){
+`rhmvp` <- function(n=7,size=4,pow=6,symbols=6){
   if(is.numeric(symbols)){symbols <- letters[seq_len(symbols)]}
-    mvp(
-        vars   = replicate(n,sample(symbols,size,replace=TRUE),simplify=FALSE),
-        powers = replicate(n,sample(pow,size,replace=TRUE),simplify=FALSE),
-        coeffs = sample(seq_len(n))
-    )
+  mvp(
+      vars   = replicate(n,sample(symbols,size,replace=FALSE),simplify=FALSE),
+      powers = replicate(n,c(rmultinom(1,pow,rep(1,size)))   ,simplify=FALSE),
+      coeffs = sample(seq_len(n),replace=TRUE)
+  )
+}
+
+`rmvp` <- function(n=7,size=4,pow=6,symbols=6){
+  out <- constant(0)
+  for(i in seq_len(n)){
+    out <- out + sample(n,1)*rhmvp(n=1,size=size,pow=sample(seq_len(pow+1)-1,1),symbols=symbols)
+  }
+  return(out)
+}
+
+`rmvpp` <- function(n=30,size=9,pow=20,symbols=15){rmvp(n=n,size=size,pow=pow,symbols=symbols)}
+`rmvppp` <- function(n=100,size=15,pow=99,symbols){
+  if(missing(symbols)){
+    symbols <- apply(expand.grid(sample(letters[1:9]),sample(letters[18:26])),1,paste,collapse="")
+  }
+  return(rmvp(n=n,size=size,pow=pow,symbols=symbols))
 }
 
 `coeffs<-` <- function(x,value){UseMethod("coeffs<-")}
@@ -131,21 +149,7 @@ setGeneric("as.mvp",function(x){standardGeneric("as.mvp")})
 
 `is.constant` <- function(x){length(allvars(x))==0}
 
-setGeneric("lose",function(x){standardGeneric("lose")})
-`lose` <- function(x){UseMethod("lose",x)}
-`lose.mvp` <- function(x){
-    if(is.zero(x)){
-      return(0)
-    } else if((length(vars(x))==1) & (length(elements(vars(x))[[1]])==0)){
-        out <- coeffs(x)
-        attributes(out) <- NULL
-        return(unclass(out))
-    } else {  # er, nothing to lose
-      return(x)
-    }
-}
-
-`subs` <- function(S,...,lose=TRUE){
+`subs` <- function(S,...,drop=TRUE){
   sb <- list(...)
   v <- names(sb)
 
@@ -153,19 +157,19 @@ setGeneric("lose",function(x){standardGeneric("lose")})
   for(i in seq_along(sb)){
     out <- subsmvp(out,v[i],as.mvp(sb[[i]]))
   }
-  if(lose){
-    return(lose(out))
+  if(drop){
+    return(drop(out))
   } else {
     return(out)
   }
 }
 
-`subsy` <- function(S, ..., lose=TRUE){
+`subsy` <- function(S, ..., drop=TRUE){
     sb <- unlist(list(...))
     jj <- mvp_substitute(S[[1]],S[[2]],S[[3]],names(sb),as.vector(sb))
     out <- mvp(jj[[1]],jj[[2]],jj[[3]])
-    if(lose){
-        return(lose(out))
+    if(drop){
+        return(drop(out))
     } else {
         return(out)
     }
@@ -198,6 +202,8 @@ setGeneric("lose",function(x){standardGeneric("lose")})
 }
 
 `deriv.mvp` <- function(expr, v, ...){
+  nth <- list(...)
+  if(length(nth)>0){v <- rep(v,nth[[1]])}
   jj <- mvp_deriv(expr[[1]], expr[[2]], expr[[3]], v)
   return(mvp(jj[[1]],jj[[2]],jj[[3]]))
 }
@@ -382,3 +388,36 @@ setGeneric("aderiv",function(x){standardGeneric("aderiv")})
 
 setGeneric("sort")
 setGeneric("lapply")
+
+setOldClass("mvp")
+setGeneric("drop")
+setMethod("drop","mvp", function(x){drop_mvp(x)})
+
+`drop_mvp` <- function(x){
+    if(is.zero(x)){
+      return(0)
+    } else if((length(vars(x))==1) & (length(elements(vars(x))[[1]])==0)){
+        out <- coeffs(x)
+        attributes(out) <- NULL
+        return(unclass(out))
+    } else {  # er, nothing to lose
+      return(x)
+    }
+}
+
+`[.mvp` <- function(x,...){
+    coeffs(x)[!(...)] <- 0
+    return(x)
+}
+
+`[<-.mvp` <- function(x,index,value){
+    coeffs(x)[index] <- value
+    return(x)
+}
+
+`all_equal_mvp` <- function(target, current){
+    x <- elements(coeffs(target - current))
+    base::all.equal(x,rep(0,length(x)),scale=max(c(elements(coeffs(current)),elements(coeffs(target)))))
+}
+
+setMethod(f = "all.equal", signature = "mvp", definition = all_equal_mvp)
